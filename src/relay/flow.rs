@@ -35,6 +35,11 @@ impl FlowStatistic {
         self.tx.fetch_add(tx, Ordering::AcqRel);
     }
 
+    /// Reset bytes transferred
+    pub fn reset_tx(&self) {
+        self.tx.fetch_sub(self.tx(), Ordering::AcqRel);
+    }
+
     /// Total bytes received
     pub fn rx(&self) -> u64 {
         self.rx.load(Ordering::Acquire)
@@ -43,6 +48,11 @@ impl FlowStatistic {
     /// Add bytes received
     pub fn incr_rx(&self, rx: u64) {
         self.rx.fetch_add(rx, Ordering::AcqRel);
+    }
+
+    /// Reset bytes transferred
+    pub fn reset_rx(&self) {
+        self.rx.fetch_sub(self.rx(), Ordering::AcqRel);
     }
 }
 
@@ -88,6 +98,13 @@ impl ServerFlowStatistic {
     /// Transmission statistic for manager
     pub fn trans_stat(&self) -> u64 {
         self.tcp().tx() + self.tcp().rx() + self.udp().tx() + self.udp.rx()
+    }
+
+    pub fn trans_stat_clear(&self) {
+        self.tcp.reset_tx();
+        self.tcp.reset_rx();
+        self.udp.reset_tx();
+        self.udp.reset_rx();
     }
 }
 

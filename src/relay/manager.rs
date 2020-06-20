@@ -56,6 +56,11 @@ mod protocol {
     pub struct RemoveRequest {
         pub server_port: u16,
     }
+
+    #[derive(Deserialize, Debug)]
+    pub struct TrafficListRequest {
+        pub min: u64,
+    }
 }
 
 struct ServerInstance {
@@ -371,7 +376,18 @@ impl ManagerService {
                 };
 
                 self.handle_stat(&pmap).await
-            }
+            },
+            "traffic_list" => {
+                let p: protocol::TrafficListRequest = match serde_json::from_str(param) {
+                    Ok(p) => p,
+                    Err(err) => {
+                        let err = Error::new(ErrorKind::InvalidData, err);
+                        return Err(err);
+                    }
+                };
+
+                self.handle_traffic_list(&p).await
+            },
             _ => {
                 let err = Error::new(ErrorKind::InvalidData, format!("unrecognized command \"{}\"", action));
                 Err(err)
@@ -529,6 +545,31 @@ impl ManagerService {
         //       because servers are spawned in the same process with the manager
 
         Ok(None)
+    }
+
+    async fn handle_traffic_list(&mut self, p: &protocol::TrafficListRequest) -> io::Result<Option<Vec<u8>>> {
+        let mut buf = String::new();
+        buf += "traffic_list: {";
+        let mut is_first = true;
+        for (port, inst) in self.servers.iter() {
+            if inst.flow_trans_stat() < p.min {
+                continue // skip
+            }
+            if is_first {
+                is_first = false;
+            } else {
+                buf += ",";
+            }
+
+            buf += &format!("\"{}\":{}", port, inst.flow_trans_stat());
+            // reset now
+            inst.flow_stat.trans_stat_clear();
+        }
+        buf += "}\n";
+
+        trace!("ACTION \"traffic list\" {:?}", p);
+
+        Ok(Some(buf.into_bytes()))
     }
 }
 
